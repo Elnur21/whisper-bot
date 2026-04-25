@@ -2,4 +2,6 @@
 .venv
 __pycache__/
 whisper.db
+whisper.db-shm
+whisper.db-wal
 node_modules/
