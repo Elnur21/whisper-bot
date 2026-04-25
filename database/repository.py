@@ -122,6 +122,22 @@ class WhisperRepository:
         await self._db.conn.commit()
         return changed == 1
 
+    async def get_recent_recipients(self, sender_id: int, limit: int = 3) -> list[dict]:
+        """Last N distinct recipients a sender has whispered to, most-recent first."""
+        async with self._db.conn.execute(
+            """
+            SELECT target_user_id, target_username, target_name
+            FROM whispers
+            WHERE sender_id = ?
+              AND (target_user_id IS NOT NULL OR target_username IS NOT NULL)
+            GROUP BY COALESCE(CAST(target_user_id AS TEXT), target_username)
+            ORDER BY MAX(created_at) DESC
+            LIMIT ?
+            """,
+            (sender_id, limit),
+        ) as cur:
+            return [dict(r) for r in await cur.fetchall()]
+
     async def delete_expired(self) -> int:
         async with self._db.conn.execute(
             "DELETE FROM whispers "

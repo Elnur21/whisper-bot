@@ -38,7 +38,7 @@ def _parse_query(raw: str):
     # message = parts[1].strip() if len(parts) > 1 else None
     parts = raw.rsplit(None, 1)
 
-    first = parts[1]
+    first = parts[-1]                                   # last token (the recipient)
     message = parts[0].strip() if len(parts) > 1 else None
 
     if first.startswith("@"):
@@ -114,28 +114,80 @@ async def handle_inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     await service.register_user(sender.id, sender.username, sender.first_name, None)
 
-    # ── Empty query ────────────────────────────────────────────────────────
+    # ── Empty query — show recent recipients as hints + search prompt ─────────
     if not raw.strip():
-        await update.inline_query.answer(
-            [_hint(
-                "🔍 Alıcı tapmaq üçün @username yada id yazın"
-                "Nümunə: Salam, mənə zəng et! @alice yada 123456789",
-            )],
-            cache_time=0,
-        )
+        recent = await service.get_recent_recipients(sender.id)
+        results = []
+        for r in recent:
+            name  = (r.get("target_name") or "").strip()
+            uname = r.get("target_username") or ""
+            uid   = r.get("target_user_id")
+            label = name or (f"@{uname}" if uname else f"İstifadəçi {uid}")
+            sub   = f"@{uname}" if uname else (f"ID {uid}" if uid else label)
+            results.append(_hint(
+                f"👤 {label}",
+                f"{sub} — mesajınızı yazın, sonra göndərin",
+            ))
+        results.append(_hint(
+            "🔍 @username və ya ID ilə alıcı axtarın",
+            "Nümunə: Salam, mənə zəng et! @alice",
+        ))
+        await update.inline_query.answer(results, cache_time=0)
         return
 
     message, search_type, search_term = _parse_query(raw)
 
-    # ── First token is not @... or digits ──────────────────────────────────
+    # ── Message typed but no recipient at end — show recents as real whisper cards ─
     if search_term is None:
-        await update.inline_query.answer(
-            [_hint(
-                "🤫 @username və ya istifadəçi ID-si ilə bitirin mesajı"
-                "Nümunə: Salam, mənə zəng et! (@alice yada 123456789)",
-            )],
-            cache_time=0,
-        )
+        recent = await service.get_recent_recipients(sender.id)
+        if not recent:
+            await update.inline_query.answer(
+                [_hint(
+                    "🤫 @username və ya ID ilə bitirin",
+                    "Nümunə: Salam, mənə zəng et! @alice",
+                )],
+                cache_time=0,
+            )
+            return
+
+        if not rate_limiter.is_allowed(sender.id):
+            retry = int(rate_limiter.retry_after(sender.id))
+            await update.inline_query.answer(
+                [_hint("⏳ Bir az yavaşla!", f"{retry} saniyədən sonra yenidən cəhd edin.")],
+                cache_time=0,
+            )
+            return
+
+        message_text = raw.strip()
+        sender_lbl = _sender_label(sender)
+        preview = message_text[:57] + "…" if len(message_text) > 60 else message_text
+        results = []
+        for r in recent:
+            name  = (r.get("target_name") or "").strip()
+            uname = r.get("target_username") or ""
+            uid   = r.get("target_user_id")
+            if name and uname:
+                recipient_label = f"{name} (@{uname})"
+            elif name:
+                recipient_label = name
+            elif uname:
+                recipient_label = f"@{uname}"
+            else:
+                recipient_label = f"İstifadəçi {uid}"
+
+            token = service.make_token()
+            await service.commit(
+                token=token,
+                sender_id=sender.id,
+                sender_label=sender_lbl,
+                message_text=message_text,
+                target_user_id=uid or None,
+                target_username=uname or None,
+                target_name=name or None,
+            )
+            results.append(_whisper_card(token, recipient_label, preview))
+
+        await update.inline_query.answer(results, cache_time=0)
         return
 
     # ── Search DB ──────────────────────────────────────────────────────────

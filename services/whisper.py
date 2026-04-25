@@ -200,6 +200,9 @@ class WhisperService:
 
         return RevealStatus.OK, whisper
 
+    async def get_recent_recipients(self, sender_id: int) -> list[dict]:
+        return await self._whispers.get_recent_recipients(sender_id)
+
     async def sender_peek(self, token: str, sender_id: int) -> Optional[dict]:
         """Read-only peek for the original sender. Never flips is_revealed."""
         row = await self._whispers.get_by_token(token)
