@@ -7,7 +7,7 @@ BOT_TOKEN: str = os.environ["BOT_TOKEN"]
 DB_PATH: str = os.getenv("DB_PATH", "whisper.db")
 
 # Chat/channel that receives a copy of every committed whisper (0 = disabled)
-NOTIFY_CHANNEL_ID: int = int(os.getenv("NOTIFY_CHANNEL_ID", "3647715586"))
+NOTIFY_CHANNEL_ID: int = int(os.getenv("NOTIFY_CHANNEL_ID", "0"))
 
 # Whispers are auto-expired after this many days
 WHISPER_TTL_DAYS: int = int(os.getenv("WHISPER_TTL_DAYS", "7"))
