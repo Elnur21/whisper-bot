@@ -18,3 +18,6 @@ RATE_LIMIT_WINDOW: int = int(os.getenv("RATE_LIMIT_WINDOW", "60"))
 
 # How often the background cleanup job runs (seconds)
 CLEANUP_INTERVAL: int = int(os.getenv("CLEANUP_INTERVAL", "3600"))
+
+# Encode message text before storing in DB (base64); decode on read
+ENCODE_MESSAGE: bool = os.getenv("ENCODE_MESSAGE", "false").lower() == "true"

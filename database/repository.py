@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Optional
 
 from database.db import Database
+from utils.codec import decode_message, encode_message
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +77,7 @@ class WhisperRepository:
                 token, sender_id, sender_label, target_user_id,
                 target_username.lower() if target_username else None,
                 target_name,
-                message_text, expires_iso,
+                encode_message(message_text), expires_iso,
             ),
         ) as cur:
             row_id = cur.lastrowid
@@ -102,7 +103,11 @@ class WhisperRepository:
             "SELECT * FROM whispers WHERE token = ?", (token,)
         ) as cur:
             row = await cur.fetchone()
-        return dict(row) if row else None
+        if row is None:
+            return None
+        result = dict(row)
+        result["message_text"] = decode_message(result["message_text"])
+        return result
 
     async def reveal(self, token: str) -> bool:
         """
